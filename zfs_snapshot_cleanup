@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# specify the desired cutoff date as a UNIX timestamp
+current_time=$(date +'%s')
+duration_in_seconds=$((7 * 24 * 60 * 60))
+cutoff_timestamp=$((current_time - duration_in_seconds))
+
+echo Deleting snapshots from before $(date -d "@$cutoff_timestamp").
+
+exit
+# specify the ZFS pool and snapshot prefix
+zpool_name="tank"
+snapshot_prefix="auto-snapshot-"
+
+# get a list of zfs snapshots
+mapfile -t snapshots < <(sudo zfs list -t snapshot -H -o name,creation | grep "$zpool_name" | awk '{print $1}')
+mapfile -t timestamps < <(sudo zfs list -t snapshot -H -o name,creation | grep "$zpool_name" | awk '{for (i=2; i<=NF; i++) printf "%s ", $i; print ""}' | xargs -I {} date -d "{}" +'%s')
+
+if [ "${#snapshots[@]}" -ne "${#timestamps[@]}" ]; then
+        exit 1
+fi
+
+for index in "${!timestamps[@]}"; do
+        if [ "${timestamps[$index]}" -lt "$cutoff_timestamp" ]; then
+                echo "$index: ${timestamps[$index]} ${snapshots[$index]}"
+                snapshot=${snapshots[$index]}
+                sudo zfs destroy -r $snapshot 2>/dev/null
+        fi
+done
+
