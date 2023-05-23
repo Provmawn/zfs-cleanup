@@ -1,0 +1,1 @@
+sudo zfs snapshot -r tank@auto-snapshot-$(date +'%s')
